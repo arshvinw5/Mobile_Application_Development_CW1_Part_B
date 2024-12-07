@@ -1,13 +1,16 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
+import 'package:hive_flutter/adapters.dart';
 import 'package:liquid_pull_to_refresh/liquid_pull_to_refresh.dart';
+import 'package:news_app/data/database.dart';
 import 'package:news_app/models/article_model.dart';
 import 'package:news_app/models/category_model.dart';
 import 'package:news_app/models/slider_model.dart';
 import 'package:news_app/screen/all_view.dart';
 import 'package:news_app/screen/article_view.dart';
 import 'package:news_app/screen/category_news.dart';
+import 'package:news_app/screen/favorite_news_screen.dart';
 import 'package:news_app/screen/search_screen.dart';
 import 'package:news_app/services/data.dart';
 import 'package:news_app/services/news.dart';
@@ -33,12 +36,16 @@ class _HomeState extends State<Home> {
 
   int activeIndex = 0;
 
+  FavoriteDataBase db = FavoriteDataBase();
+
   @override
   void initState() {
     //get the category list from getCat function
     categories = getCategories();
     getBreakingNews();
     getNews();
+    db.loadData();
+    db.updateDatabase();
     super.initState();
   }
 
@@ -118,6 +125,66 @@ class _HomeState extends State<Home> {
           ],
         ),
       ),
+      bottomNavigationBar: SafeArea(
+          child: Container(
+              decoration: const BoxDecoration(color: Colors.transparent),
+              padding: const EdgeInsets.all(8),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.symmetric(horizontal: 90.0),
+                decoration: const BoxDecoration(
+                    color: Colors.black,
+                    borderRadius: BorderRadius.all(Radius.circular(10))),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.pop(context);
+                      },
+                      child: const SizedBox(
+                        height: 36,
+                        width: 36,
+                        child: Icon(
+                          Icons.home,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (context) => FavoriteScreen()),
+                        );
+                      },
+                      child: const SizedBox(
+                        height: 36,
+                        width: 36,
+                        child: Icon(
+                          Icons.favorite,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {},
+                      child: const SizedBox(
+                        height: 36,
+                        width: 36,
+                        child: Icon(
+                          Icons.settings,
+                          color: Colors.white,
+                          size: 36,
+                        ),
+                      ),
+                    )
+                  ],
+                ),
+              ))),
       body: LiquidPullToRefresh(
         onRefresh: _handleRefresh,
         color: Colors.grey.shade300,
@@ -286,16 +353,36 @@ class _HomeState extends State<Home> {
                       ),
                       Container(
                         child: ListView.builder(
-                            shrinkWrap: true,
-                            physics: const ClampingScrollPhysics(),
-                            itemCount: articles.length,
-                            itemBuilder: (context, index) {
-                              return BlogTile(
-                                  url: articles[index].url!,
-                                  imgUrl: articles[index].urlToImage!,
-                                  descriptionNews: articles[index].description!,
-                                  title: articles[index].title!);
-                            }),
+                          shrinkWrap: true,
+                          physics: const ClampingScrollPhysics(),
+                          itemCount: articles.length,
+                          itemBuilder: (context, index) {
+                            return BlogTile(
+                              url: articles[index].url!,
+                              imgUrl: articles[index].urlToImage!,
+                              descriptionNews: articles[index].description!,
+                              title: articles[index].title!,
+                              articles: articles[index],
+                              onDelete: () {
+                                if (db.favoriteList.contains(articles[index])) {
+                                  db.removeFavorite(articles[index]);
+                                } else {
+                                  db.addFavorite(articles[index]);
+                                }
+                                setState(() {
+                                  db.updateDatabase();
+                                });
+                                // Trigger rebuild to update the favorite icon
+                              },
+                              icon: Icon(
+                                db.favoriteList.contains(articles[index])
+                                    ? Icons.favorite
+                                    : Icons.favorite_border,
+                                color: Colors.red,
+                              ),
+                            );
+                          },
+                        ),
                       )
                     ],
                   ),
@@ -471,22 +558,42 @@ class CategoryTile extends StatelessWidget {
   }
 }
 
-class BlogTile extends StatelessWidget {
-  String imgUrl, title, descriptionNews, url;
+class BlogTile extends StatefulWidget {
+  final String imgUrl, title, descriptionNews, url;
+  final ArticleModel articles;
+  final VoidCallback onDelete;
+  final Icon icon;
 
   BlogTile(
       {super.key,
       required this.imgUrl,
       required this.descriptionNews,
       required this.title,
-      required this.url});
+      required this.url,
+      required this.articles,
+      required this.onDelete,
+      required this.icon});
+
+  @override
+  _BlogTileState createState() => _BlogTileState();
+}
+
+class _BlogTileState extends State<BlogTile> {
+  @override
+  void initState() {
+    super.initState();
+    // Load the data initially
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        Navigator.push(context,
-            MaterialPageRoute(builder: (context) => ArticleView(blogUrl: url)));
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+              builder: (context) => ArticleView(blogUrl: widget.url)),
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 10.0),
@@ -501,26 +608,23 @@ class BlogTile extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: CachedNetworkImage(
-                        imageUrl: imgUrl,
-                        height: 120,
-                        width: 120,
-                        fit: BoxFit.cover,
-                      ),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: CachedNetworkImage(
+                      imageUrl: widget.imgUrl,
+                      height: 120,
+                      width: 120,
+                      fit: BoxFit.cover,
                     ),
                   ),
-                  const SizedBox(
-                    width: 8.0,
-                  ),
+                  const SizedBox(width: 8.0),
                   Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: MediaQuery.of(context).size.width / 1.6,
+                      SizedBox(
+                        width: MediaQuery.of(context).size.width / 1.9,
                         child: Text(
-                          title,
+                          widget.title,
                           maxLines: 2,
                           style: TextStyle(
                               color: Colors.grey.shade900,
@@ -528,13 +632,11 @@ class BlogTile extends StatelessWidget {
                               fontSize: 17.0),
                         ),
                       ),
-                      const SizedBox(
-                        height: 5.0,
-                      ),
-                      Container(
-                        width: MediaQuery.of(context).size.width / 1.6,
+                      const SizedBox(height: 5.0),
+                      SizedBox(
+                        width: MediaQuery.of(context).size.width / 1.9,
                         child: Text(
-                          descriptionNews,
+                          widget.descriptionNews,
                           maxLines: 3,
                           style: const TextStyle(
                               color: Colors.black54,
@@ -543,7 +645,8 @@ class BlogTile extends StatelessWidget {
                         ),
                       ),
                     ],
-                  )
+                  ),
+                  IconButton(icon: widget.icon, onPressed: widget.onDelete),
                 ],
               ),
             ),
@@ -553,61 +656,3 @@ class BlogTile extends StatelessWidget {
     );
   }
 }
-
-
-
-
-      // bottomNavigationBar: SafeArea(
-      //     child: Container(
-      //         decoration: const BoxDecoration(color: Colors.transparent),
-      //         padding: const EdgeInsets.all(8),
-      //         child: Container(
-      //           padding: const EdgeInsets.all(12),
-      //           margin: const EdgeInsets.symmetric(horizontal: 90.0),
-      //           decoration: const BoxDecoration(
-      //               color: Colors.black,
-      //               borderRadius: BorderRadius.all(Radius.circular(10))),
-      //           child: Row(
-      //             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      //             children: [
-      //               GestureDetector(
-      //                 onTap: () {
-      //                   Navigator.pop(context);
-      //                 },
-      //                 child: const SizedBox(
-      //                   height: 36,
-      //                   width: 36,
-      //                   child: Icon(
-      //                     Icons.home,
-      //                     color: Colors.white,
-      //                     size: 36,
-      //                   ),
-      //                 ),
-      //               ),
-      //               GestureDetector(
-      //                 onTap: () {},
-      //                 child: const SizedBox(
-      //                   height: 36,
-      //                   width: 36,
-      //                   child: Icon(
-      //                     Icons.favorite,
-      //                     color: Colors.white,
-      //                     size: 36,
-      //                   ),
-      //                 ),
-      //               ),
-      //               GestureDetector(
-      //                 onTap: () {},
-      //                 child: const SizedBox(
-      //                   height: 36,
-      //                   width: 36,
-      //                   child: Icon(
-      //                     Icons.settings,
-      //                     color: Colors.white,
-      //                     size: 36,
-      //                   ),
-      //                 ),
-      //               )
-      //             ],
-      //           ),
-      //         ))),
