@@ -22,6 +22,47 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
     super.initState();
   }
 
+  void _deleteFavoriteArticle(int index, List<ArticleModel> favoriteArticles) {
+    setState(() {
+      favoriteArticles.removeAt(index); // Remove from the list
+      db.updateDatabase(); // Update the database
+    });
+  }
+
+  void _showDeleteConfirmationDialog(
+    BuildContext context,
+    int index,
+    List<ArticleModel> favoriteArticles,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Confirm Delete"),
+          content: const Text(
+            "Are you sure you want to remove this article from your favorites?",
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop(); // Close the dialog
+              },
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: () {
+                // Call the deletion method in the parent when user confirms
+                _deleteFavoriteArticle(index, favoriteArticles);
+                Navigator.of(context).pop(); // Close the dialog
+              },
+              child: const Text("Delete"),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -73,10 +114,8 @@ class _FavoriteScreenState extends State<FavoriteScreen> {
                         descriptionNews: article.description ?? '',
                         title: article.title ?? '',
                         onDelete: () {
-                          setState(() {
-                            favoriteArticles.removeAt(index);
-                            db.updateDatabase();
-                          });
+                          _showDeleteConfirmationDialog(
+                              context, index, favoriteArticles);
                         });
                   },
                 );
