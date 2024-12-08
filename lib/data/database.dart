@@ -1,21 +1,3 @@
-// import 'package:hive/hive.dart';
-
-// class ToDoDataBase {
-//   List favoriteList = [];
-//   //reference the box
-//   final _myBox = Hive.box('favoriteList');
-
-//   //load the data from Database
-//   void loadData() {
-//     favoriteList = _myBox.get('index');
-//   }
-
-//   //update Database
-//   void updateDatabase() {
-//     _myBox.put('index', favoriteList);
-//   }
-// }
-
 import 'package:hive/hive.dart';
 import 'package:news_app/models/article_model.dart'; // Make sure to import your article model
 
@@ -27,8 +9,8 @@ class FavoriteDataBase {
   void loadData() {
     var storedData = _myBox.get('index');
     if (storedData != null) {
-      favoriteList = List<ArticleModel>.from(
-          storedData.map((e) => ArticleModel.fromMap(e)));
+      favoriteList = List<ArticleModel>.from((storedData as List).map(
+          (e) => ArticleModel.fromMap((e as Map).cast<String, dynamic>())));
     }
   }
 
